@@ -109,26 +109,28 @@ export default function App() {
     }, 60)
   }
 
-  function handleSelect(id) {
-    if (editingId && editingId !== id) {
-      commitEdit(editingId)
+  function flushEdit(id) {
+    if (!id) return
+    const el = document.querySelector(`.node[data-id="${id}"] .node-content`)
+    if (el) {
+      updateNode(id, { html: el.innerHTML, label: el.innerText })
     }
+    setEditingId(null)
+  }
+
+  function handleSelect(id) {
+    if (editingId && editingId !== id) flushEdit(editingId)
     setSelectedId(id)
   }
 
   function handleDeselect() {
-    if (editingId) commitEdit(editingId)
+    if (editingId) flushEdit(editingId)
     setSelectedId(null)
   }
 
   function handleEdit(id) {
     setSelectedId(id)
     setEditingId(id)
-  }
-
-  function commitEdit(id) {
-    // The Node component calls onCommitEdit with the latest html/label
-    setEditingId(null)
   }
 
   function handleCommitEdit(id, html, label) {
