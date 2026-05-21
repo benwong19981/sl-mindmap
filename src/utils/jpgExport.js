@@ -137,11 +137,28 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
+// Read the dominant text-align from the node's rendered DOM element
+function getNodeTextAlign(nodeId) {
+  const el = document.querySelector(`.node[data-id="${nodeId}"] .node-content`)
+  if (!el) return 'left'
+  // Walk up to find explicit text-align (set by execCommand justify*)
+  let target = el.firstElementChild || el
+  while (target && target !== el.parentElement) {
+    const align = window.getComputedStyle(target).textAlign
+    if (align && align !== 'start' && align !== 'left') return align
+    // Also check inline style directly (execCommand writes inline styles)
+    if (target.style?.textAlign) return target.style.textAlign
+    target = target.parentElement
+  }
+  return 'left'
+}
+
 function drawNodeText(ctx, node, x, y, w, h, fg) {
   const runs = parseRuns(node.html || node.label || '')
   const padX = 14
   const maxTextW = w - padX * 2
   const lines = wrapLines(runs, ctx, maxTextW)
+  const align = getNodeTextAlign(node.id)
 
   const lineHeights = lines.map(line => {
     let maxSize = 14
@@ -160,7 +177,7 @@ function drawNodeText(ctx, node, x, y, w, h, fg) {
     const lh = lineHeights[li]
     curY += lh
 
-    // Measure line width for centering
+    // Measure line width to compute x start based on alignment
     let lineW = 0
     for (const run of line) {
       const size = FONT_SIZES[run.size] || 14
@@ -168,7 +185,14 @@ function drawNodeText(ctx, node, x, y, w, h, fg) {
       lineW += ctx.measureText(run.text).width
     }
 
-    let curX = x + (w - lineW) / 2
+    let curX
+    if (align === 'center') {
+      curX = x + (w - lineW) / 2
+    } else if (align === 'right') {
+      curX = x + w - padX - lineW
+    } else {
+      curX = x + padX  // left (default)
+    }
 
     for (const run of line) {
       const size = FONT_SIZES[run.size] || 14
