@@ -42,8 +42,8 @@ export default function Node({
 
   function handleMouseDown(e) {
     if (e.button !== 0) return
-    if (isEditing) return
-    e.stopPropagation()
+    e.stopPropagation() // always block canvas pan/drag while this node is mounted
+    if (isEditing) return // let browser handle native text selection
     if (isExportMode) return
     onDragStart(e, node.id)
   }
