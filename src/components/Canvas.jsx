@@ -34,26 +34,31 @@ export default function Canvas({
   const selBoxStart = useRef(null)
   const [selBox, setSelBox] = useState(null)
 
-  // Wheel zoom
+  // Wheel: pinch (ctrlKey=true) → zoom, two-finger swipe → pan
   const handleWheel = useCallback((e) => {
     if (exportMode) return
     e.preventDefault()
     const cw = cwRef.current
     if (!cw) return
 
-    const rect = cw.getBoundingClientRect()
-    const mouseX = e.clientX - rect.left
-    const mouseY = e.clientY - rect.top
+    if (e.ctrlKey) {
+      // Pinch-to-zoom (trackpad) or Ctrl+scroll (mouse)
+      const rect = cw.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
 
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * delta))
+      // deltaY from pinch is smaller than scroll wheel, so use a gentler factor
+      const factor = 1 - e.deltaY * 0.01
+      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * factor))
 
-    // Zoom around mouse cursor
-    const newPanX = mouseX - (mouseX - panX) * (newZoom / zoom)
-    const newPanY = mouseY - (mouseY - panY) * (newZoom / zoom)
-
-    onZoom(newZoom, newPanX, newPanY)
-  }, [zoom, panX, panY, exportMode, onZoom])
+      const newPanX = mouseX - (mouseX - panX) * (newZoom / zoom)
+      const newPanY = mouseY - (mouseY - panY) * (newZoom / zoom)
+      onZoom(newZoom, newPanX, newPanY)
+    } else {
+      // Two-finger swipe → pan (deltaX = horizontal, deltaY = vertical)
+      onPan(panX - e.deltaX, panY - e.deltaY)
+    }
+  }, [zoom, panX, panY, exportMode, onZoom, onPan])
 
   useEffect(() => {
     const el = cwRef.current
