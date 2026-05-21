@@ -10,7 +10,7 @@ export default function Canvas({
   nodes,
   edges,
   collapsed,
-  selectedId,
+  selectedIds,
   editingId,
   exportMode,
   exportSelected,
@@ -26,12 +26,14 @@ export default function Canvas({
   onContextMenu,
   onExportToggle,
   onExportDragSelect,
+  onRubberBandSelect,
 }) {
   const cwRef = useRef(null)
   const [isPanning, setIsPanning] = useState(false)
   const panStart = useRef(null)
   const dragNodeState = useRef(null)
   const selBoxStart = useRef(null)
+  const selBoxMode = useRef(null) // 'export' | 'normal'
   const [selBox, setSelBox] = useState(null)
 
   // Wheel: pinch (ctrlKey=true) → zoom, two-finger swipe → pan
@@ -42,20 +44,15 @@ export default function Canvas({
     if (!cw) return
 
     if (e.ctrlKey) {
-      // Pinch-to-zoom (trackpad) or Ctrl+scroll (mouse)
       const rect = cw.getBoundingClientRect()
       const mouseX = e.clientX - rect.left
       const mouseY = e.clientY - rect.top
-
-      // deltaY from pinch is smaller than scroll wheel, so use a gentler factor
       const factor = 1 - e.deltaY * 0.01
       const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * factor))
-
       const newPanX = mouseX - (mouseX - panX) * (newZoom / zoom)
       const newPanY = mouseY - (mouseY - panY) * (newZoom / zoom)
       onZoom(newZoom, newPanX, newPanY)
     } else {
-      // Two-finger swipe → pan (deltaX = horizontal, deltaY = vertical)
       onPan(panX - e.deltaX, panY - e.deltaY)
     }
   }, [zoom, panX, panY, exportMode, onZoom, onPan])
@@ -69,17 +66,25 @@ export default function Canvas({
 
   function handleMouseDown(e) {
     if (e.button !== 0) return
-    // Nodes call e.stopPropagation() so if we reach here, it's always a canvas background click
 
     if (exportMode) {
-      // Start drag-select
       const rect = cwRef.current.getBoundingClientRect()
       selBoxStart.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+      selBoxMode.current = 'export'
       setSelBox({ x1: selBoxStart.current.x, y1: selBoxStart.current.y, x2: selBoxStart.current.x, y2: selBoxStart.current.y })
       return
     }
 
-    // Start panning
+    if (e.shiftKey) {
+      // Shift+drag on canvas = rubber-band multi-select
+      const rect = cwRef.current.getBoundingClientRect()
+      selBoxStart.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+      selBoxMode.current = 'normal'
+      setSelBox({ x1: selBoxStart.current.x, y1: selBoxStart.current.y, x2: selBoxStart.current.x, y2: selBoxStart.current.y })
+      return
+    }
+
+    // Plain click on canvas background → deselect all + start pan
     onDeselect()
     setIsPanning(true)
     panStart.current = { x: e.clientX - panX, y: e.clientY - panY }
@@ -122,7 +127,6 @@ export default function Canvas({
     }
 
     if (selBox && selBoxStart.current) {
-      // Compute selected nodes from box
       const cwRect = cwRef.current.getBoundingClientRect()
       const boxLeft   = Math.min(selBox.x1, selBox.x2) + cwRect.left
       const boxTop    = Math.min(selBox.y1, selBox.y2) + cwRect.top
@@ -139,9 +143,12 @@ export default function Canvas({
         }
       }
 
-      onExportDragSelect(selected)
+      if (selBoxMode.current === 'export') onExportDragSelect(selected)
+      else onRubberBandSelect(selected)
+
       setSelBox(null)
       selBoxStart.current = null
+      selBoxMode.current = null
     }
   }
 
@@ -157,7 +164,6 @@ export default function Canvas({
     }
   }
 
-  // Visible nodes (filter out children of collapsed parents)
   function isVisible(id) {
     const node = nodes[id]
     if (!node) return false
@@ -195,7 +201,7 @@ export default function Canvas({
             <Node
               key={node.id}
               node={node}
-              isSelected={selectedId === node.id}
+              isSelected={selectedIds.has(node.id)}
               isEditing={editingId === node.id}
               isExportSelected={exportSelected.has(node.id)}
               isExportMode={exportMode}
@@ -212,8 +218,16 @@ export default function Canvas({
         })}
       </div>
 
-      {exportMode && selBox && (
-        <SelectionBox rect={selBox} />
+      {selBox && (
+        <div
+          className={selBoxMode.current === 'export' ? 'selection-box' : 'selection-box-normal'}
+          style={{
+            left: Math.min(selBox.x1, selBox.x2),
+            top: Math.min(selBox.y1, selBox.y2),
+            width: Math.abs(selBox.x2 - selBox.x1),
+            height: Math.abs(selBox.y2 - selBox.y1),
+          }}
+        />
       )}
     </div>
   )

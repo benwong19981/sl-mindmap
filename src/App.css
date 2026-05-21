@@ -581,6 +581,41 @@ body {
   text-align: center;
 }
 
+/* ─── Multi-select format bar ─── */
+.multi-format-bar {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--br);
+  border-radius: var(--rm);
+  padding: 5px 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  z-index: 250;
+  flex-wrap: nowrap;
+}
+
+.multi-format-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ac);
+  white-space: nowrap;
+  padding-right: 4px;
+}
+
+/* Rubber-band selection box (normal mode, not export) */
+.selection-box-normal {
+  position: absolute;
+  border: 1.5px dashed var(--ac);
+  background: rgba(24,95,165,0.06);
+  pointer-events: none;
+  z-index: 10;
+}
+
 /* ─── Toast ─── */
 .toast {
   position: fixed;

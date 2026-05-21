@@ -15,7 +15,8 @@ const COLORS = [
 ]
 
 export default function SidePanel({
-  selectedId,
+  selectedId,  // primary selected node
+  selectedCount,
   nodes,
   collapsed,
   onColorChange,
@@ -29,6 +30,7 @@ export default function SidePanel({
   const node = nodes[selectedId]
   const isRoot = !node.parent
   const isCollapsed = collapsed.has(selectedId)
+  const isMulti = selectedCount > 1
 
   // Check if node has children
   const hasChildren = Object.values(nodes).some(n => n.parent === selectedId)
@@ -53,17 +55,19 @@ export default function SidePanel({
 
       <div className="side-panel-section">
         <div className="side-panel-label">Node actions</div>
-        <button className="side-action-btn" onClick={() => onAddChild(selectedId)}>
-          <IconPlus size={15} />
-          Add child
-        </button>
-        {!isRoot && (
+        {!isMulti && (
+          <button className="side-action-btn" onClick={() => onAddChild(selectedId)}>
+            <IconPlus size={15} />
+            Add child
+          </button>
+        )}
+        {!isMulti && !isRoot && (
           <button className="side-action-btn" onClick={() => onAddSibling(selectedId)}>
             <IconArrowRight size={15} />
             Add sibling
           </button>
         )}
-        {hasChildren && (
+        {!isMulti && hasChildren && (
           <button className="side-action-btn" onClick={() => onToggleCollapse(selectedId)}>
             {isCollapsed ? <IconChevronRight size={15} /> : <IconChevronDown size={15} />}
             {isCollapsed ? 'Expand' : 'Collapse'}
@@ -72,7 +76,7 @@ export default function SidePanel({
         {!isRoot && (
           <button className="side-action-btn danger" onClick={() => onDelete(selectedId)}>
             <IconTrash size={15} />
-            Delete
+            {isMulti ? `Delete ${selectedCount} nodes` : 'Delete'}
           </button>
         )}
       </div>

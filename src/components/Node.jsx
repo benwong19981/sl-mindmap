@@ -54,7 +54,7 @@ export default function Node({
       onExportToggle(node.id)
       return
     }
-    if (!isEditing) onSelect(node.id)
+    if (!isEditing) onSelect(node.id, e.shiftKey)
   }
 
   function handleDoubleClick(e) {
