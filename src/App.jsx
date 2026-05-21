@@ -12,7 +12,6 @@ import MultiFormatBar from './components/MultiFormatBar.jsx'
 import SidePanel from './components/SidePanel.jsx'
 import ExportBanner from './components/ExportBanner.jsx'
 import ContextMenu from './components/ContextMenu.jsx'
-import Modal from './components/Modal.jsx'
 import ZoomControls from './components/ZoomControls.jsx'
 
 function Toast({ message }) {
@@ -58,11 +57,10 @@ export default function App() {
   const [exportMode, setExportMode] = useState(false)
   const [exportSelected, setExportSelected] = useState(new Set())
   const [contextMenu, setContextMenu] = useState(null)
-  const [modal, setModal] = useState(null)
+  const [modal, setModal] = useState(null) // kept for future use
   const [toast, setToast] = useState(null)
   const [renderTick, setRenderTick] = useState(0)
 
-  const importInputRef = useRef(null)
   const toastTimerRef = useRef(null)
   const kbRef = useRef({})
 
@@ -71,7 +69,7 @@ export default function App() {
 
   const runLayout = useLayout(nodes, collapsed, applyLayout)
 
-  const { saveToLS, loadFromLS, deleteFromLS, listSaved, saveFile, importFile } = useStorage(
+  const { saveToLS, saveFileNative, openFileNative } = useStorage(
     nodes, edges, collapsed, mapTitle, loadMap
   )
 
@@ -264,39 +262,27 @@ export default function App() {
     showToast(`✓ Saved: ${mapTitle}`)
   }
 
-  function handleSaveFile(filename) {
-    saveFile(filename)
-    setModal(null)
-    setMapTitle(filename)
-  }
-
-  function handleLoadFromLS(name) {
-    loadFromLS(name)
-    setMapTitle(name)
-    setSelectedIds(new Set())
-    setEditingId(null)
-    setModal(null)
-    setTimeout(() => { setRenderTick(t => t + 1); runLayout() }, 140)
-  }
-
-  function handleDeleteFromLS(name) { deleteFromLS(name) }
-
-  function handleImportClick() { importInputRef.current?.click() }
-
-  async function handleImportFile(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function handleSave() {
     try {
-      const title = await importFile(file)
+      const saved = await saveFileNative(mapTitle)
+      if (saved) showToast(`✓ Saved: ${saved}`)
+    } catch {
+      showToast('Error saving file')
+    }
+  }
+
+  async function handleOpen() {
+    try {
+      const title = await openFileNative()
+      if (!title) return  // user cancelled
       setMapTitle(title)
       setSelectedIds(new Set())
       setEditingId(null)
       setTimeout(() => { setRenderTick(t => t + 1); runLayout() }, 140)
-      showToast(`✓ Imported: ${title}`)
+      showToast(`✓ Opened: ${title}`)
     } catch {
       showToast('Error: Invalid .mindmap file')
     }
-    e.target.value = ''
   }
 
   function handleNew() {
@@ -316,16 +302,16 @@ export default function App() {
 
   kbRef.current = {
     primaryId, editingId, nodes, exportMode, selectedIds,
-    handleAddChild, handleAddSibling, handleDelete,
-    handleEdit, handleAutoLayout, handleCancelExport, handleCtrlS, handleCommitEdit, showToast
+    handleAddChild, handleAddSibling, handleDelete, handleEdit,
+    handleAutoLayout, handleCancelExport, handleCtrlS, handleSave, handleCommitEdit, showToast
   }
 
   useEffect(() => {
     function handleKeyDown(e) {
       const {
         primaryId, editingId, nodes, exportMode, selectedIds,
-        handleAddChild, handleAddSibling, handleDelete,
-        handleEdit, handleAutoLayout, handleCancelExport, handleCtrlS, handleCommitEdit, showToast
+        handleAddChild, handleAddSibling, handleDelete, handleEdit,
+        handleAutoLayout, handleCancelExport, handleCtrlS, handleSave, handleCommitEdit, showToast
       } = kbRef.current
 
       const tag = document.activeElement?.tagName
@@ -360,7 +346,8 @@ export default function App() {
         else setSelectedIds(new Set())
       } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        handleCtrlS()
+        if (e.shiftKey) handleSave()  // Ctrl+Shift+S → Save As (native dialog)
+        else handleCtrlS()            // Ctrl+S → quick-save to localStorage
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
         e.preventDefault()
         // Select all visible nodes
@@ -385,9 +372,8 @@ export default function App() {
         onToggleCollapse={handleToggleCollapse}
         onAutoLayout={handleAutoLayout}
         onDelete={handleDelete}
-        onOpen={() => setModal('open')}
-        onSaveFile={() => setModal('save')}
-        onImport={handleImportClick}
+        onOpen={handleOpen}
+        onSave={handleSave}
         onExportMode={handleEnterExportMode}
         onNew={handleNew}
       />
@@ -464,17 +450,6 @@ export default function App() {
         />
       )}
 
-      {modal && (
-        <Modal
-          mode={modal}
-          onClose={() => setModal(null)}
-          onSave={handleSaveFile}
-          onLoad={handleLoadFromLS}
-          onDelete={handleDeleteFromLS}
-          listSaved={listSaved}
-        />
-      )}
-
       <ZoomControls
         zoom={zoom}
         onZoomIn={handleZoomIn}
@@ -483,14 +458,6 @@ export default function App() {
       />
 
       <Toast message={toast} />
-
-      <input
-        ref={importInputRef}
-        type="file"
-        accept=".mindmap,.json"
-        style={{ display: 'none' }}
-        onChange={handleImportFile}
-      />
     </>
   )
 }

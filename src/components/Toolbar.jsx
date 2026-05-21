@@ -2,7 +2,7 @@ import {
   IconBrain,
   IconPlus, IconArrowRight, IconChevronRight,
   IconLayout, IconTrash,
-  IconFolderOpen, IconDeviceFloppy, IconUpload,
+  IconFolderOpen, IconDeviceFloppy,
   IconPhoto, IconFile
 } from '@tabler/icons-react'
 
@@ -18,8 +18,7 @@ export default function Toolbar({
   onAutoLayout,
   onDelete,
   onOpen,
-  onSaveFile,
-  onImport,
+  onSave,
   onExportMode,
   onNew,
 }) {
@@ -44,76 +43,35 @@ export default function Toolbar({
 
       <span className="toolbar-sep" />
 
-      <button
-        className="tb-btn"
-        title="Add child (Tab)"
-        onClick={() => selectedId ? onAddChild(selectedId) : null}
-        disabled={!selectedId}
-      >
-        <IconPlus size={16} />
-        Child
+      <button className="tb-btn" title="Add child (Tab)" onClick={() => selectedId ? onAddChild(selectedId) : null} disabled={!selectedId}>
+        <IconPlus size={16} /> Child
       </button>
-
-      <button
-        className="tb-btn"
-        title="Add sibling (Enter)"
-        onClick={() => selectedId && !isRoot ? onAddSibling(selectedId) : null}
-        disabled={!selectedId || isRoot}
-      >
-        <IconArrowRight size={16} />
-        Sibling
+      <button className="tb-btn" title="Add sibling (Enter)" onClick={() => selectedId && !isRoot ? onAddSibling(selectedId) : null} disabled={!selectedId || isRoot}>
+        <IconArrowRight size={16} /> Sibling
       </button>
-
-      <button
-        className="tb-btn"
-        title="Collapse / Expand"
-        onClick={() => selectedId && hasChildren ? onToggleCollapse(selectedId) : null}
-        disabled={!selectedId || !hasChildren}
-      >
-        <IconChevronRight size={16} />
-        {isCollapsed ? 'Expand' : 'Collapse'}
+      <button className="tb-btn" title="Collapse / Expand" onClick={() => selectedId && hasChildren ? onToggleCollapse(selectedId) : null} disabled={!selectedId || !hasChildren}>
+        <IconChevronRight size={16} /> {isCollapsed ? 'Expand' : 'Collapse'}
       </button>
-
       <button className="tb-btn" title="Auto-layout (L)" onClick={onAutoLayout}>
-        <IconLayout size={16} />
-        Layout
+        <IconLayout size={16} /> Layout
       </button>
-
-      <button
-        className="tb-btn danger"
-        title="Delete (Del)"
-        onClick={() => selectedId && !isRoot ? onDelete(selectedId) : null}
-        disabled={!selectedId || isRoot}
-      >
-        <IconTrash size={16} />
-        Delete
+      <button className="tb-btn danger" title="Delete (Del)" onClick={() => selectedId && !isRoot ? onDelete(selectedId) : null} disabled={!selectedId || isRoot}>
+        <IconTrash size={16} /> Delete
       </button>
 
       <span className="toolbar-spacer" />
 
-      <button className="tb-btn" title="Open saved map" onClick={onOpen}>
-        <IconFolderOpen size={16} />
-        Open
+      <button className="tb-btn" title="Open file" onClick={onOpen}>
+        <IconFolderOpen size={16} /> Open
       </button>
-
-      <button className="tb-btn" title="Save to file" onClick={onSaveFile}>
-        <IconDeviceFloppy size={16} />
-        Save file
+      <button className="tb-btn" title="Save file (Ctrl+S quick-saves)" onClick={onSave}>
+        <IconDeviceFloppy size={16} /> Save
       </button>
-
-      <button className="tb-btn" title="Import .mindmap file" onClick={onImport}>
-        <IconUpload size={16} />
-        Import
-      </button>
-
       <button className="tb-btn primary" title="Export JPG" onClick={onExportMode}>
-        <IconPhoto size={16} />
-        Export JPG
+        <IconPhoto size={16} /> Export JPG
       </button>
-
       <button className="tb-btn" title="New map" onClick={onNew}>
-        <IconFile size={16} />
-        New
+        <IconFile size={16} /> New
       </button>
     </div>
   )
