@@ -1,3 +1,15 @@
+const FONT_SIZES = { 1: 10, 2: 12, 3: 14, 4: 18, 5: 24, 6: 32 }
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+
+// Shared font string builder — must be used by both wrapLines and drawNodeText
+// so that measurement and drawing always use the identical font.
+export function makeFont(run, overrideBold = false, overrideSize = null) {
+  const size = overrideSize ?? (FONT_SIZES[run.size] || 14)
+  const italic = run.italic ? 'italic ' : ''
+  const weight = (run.bold || overrideBold) ? 'bold ' : ''
+  return `${italic}${weight}${size}px ${FONT_FAMILY}`
+}
+
 // Parse rich-text HTML into flat text runs for canvas rendering
 export function parseRuns(html) {
   if (!html) return [{ text: '', bold: false, italic: false, underline: false, color: null, size: 3 }]
@@ -84,11 +96,8 @@ export function wrapLines(runs, ctx, maxWidth) {
   let currentLine = []
   let currentWidth = 0
 
-  const FONT_SIZES = { 1: 10, 2: 12, 3: 14, 4: 18, 5: 24, 6: 32 }
-
   function measureRun(run) {
-    const size = FONT_SIZES[run.size] || 14
-    ctx.font = `${run.italic ? 'italic ' : ''}${run.bold ? 'bold ' : ''}${size}px -apple-system, sans-serif`
+    ctx.font = makeFont(run)
     return ctx.measureText(run.text).width
   }
 

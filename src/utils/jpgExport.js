@@ -1,4 +1,4 @@
-import { parseRuns, wrapLines } from './htmlToRuns.js'
+import { parseRuns, wrapLines, makeFont } from './htmlToRuns.js'
 
 const NODE_BG = {
   root: '#185FA5', blue: '#E6F1FB', teal: '#E1F5EE', coral: '#FAECE7',
@@ -161,34 +161,41 @@ function getNodeTextAlign(nodeId) {
 }
 
 function drawNodeText(ctx, node, x, y, w, h, fg) {
+  const isRoot = node.color === 'root'
+  // Match browser padding exactly: root uses padding:12px 22px, others use 8px 14px
+  const padX = isRoot ? 22 : 14
+  const padY = isRoot ? 12 : 8
+  // Root text is 15px bold via CSS — approximate with bold + size override
+  const rootBold = isRoot
+  const rootSize = isRoot ? 15 : null
+
   const runs = parseRuns(node.html || node.label || '')
-  const padX = 14
-  const maxTextW = w - padX * 2 - 4  // 4px safety margin — canvas fonts differ slightly from browser
+  const maxTextW = w - padX * 2 - 2
   const lines = wrapLines(runs, ctx, maxTextW)
   const align = getNodeTextAlign(node.id)
 
-  const lineHeights = lines.map(line => {
-    let maxSize = 14
+  // textBaseline = 'middle': we draw at the vertical centre of each line box.
+  // This mirrors how the browser centres text within its line-height box.
+  ctx.textBaseline = 'middle'
+  let curY = y + padY  // start at the top padding edge, same as the browser
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li]
+
+    // Dominant font size for this line (determines line-height)
+    let maxSize = rootSize ?? 14
     for (const run of line) {
       const s = FONT_SIZES[run.size] || 14
       if (s > maxSize) maxSize = s
     }
-    return maxSize * 1.35
-  })
+    const lh = maxSize * 1.4   // match CSS line-height: 1.4
+    const lineY = curY + lh / 2 // vertical centre of this line (textBaseline=middle)
 
-  const totalH = lineHeights.reduce((s, lh) => s + lh, 0)
-  let curY = y + (h - totalH) / 2
-
-  for (let li = 0; li < lines.length; li++) {
-    const line = lines[li]
-    const lh = lineHeights[li]
-    curY += lh
-
-    // Measure line width to compute x start based on alignment
+    // Measure full line width for alignment calculation.
+    // MUST use makeFont() — the same function used by wrapLines — so widths match.
     let lineW = 0
     for (const run of line) {
-      const size = FONT_SIZES[run.size] || 14
-      ctx.font = `${run.italic ? 'italic ' : ''}${run.bold ? 'bold ' : ''}${size}px -apple-system, BlinkMacSystemFont, sans-serif`
+      ctx.font = makeFont(run, rootBold, rootSize)
       lineW += ctx.measureText(run.text).width
     }
 
@@ -198,28 +205,28 @@ function drawNodeText(ctx, node, x, y, w, h, fg) {
     } else if (align === 'right') {
       curX = x + w - padX - lineW
     } else {
-      curX = x + padX  // left (default)
+      curX = x + padX
     }
 
     for (const run of line) {
-      const size = FONT_SIZES[run.size] || 14
-      ctx.font = `${run.italic ? 'italic ' : ''}${run.bold ? 'bold ' : ''}${size}px -apple-system, BlinkMacSystemFont, sans-serif`
-      const rw = ctx.measureText(run.text).width  // measure before fillText to avoid stale state
+      const size = rootSize ?? (FONT_SIZES[run.size] || 14)
+      ctx.font = makeFont(run, rootBold, rootSize)
+      const rw = ctx.measureText(run.text).width
       ctx.fillStyle = run.color || fg
-      ctx.fillText(run.text, curX, curY)
+      ctx.fillText(run.text, curX, lineY)
 
       if (run.underline) {
         ctx.beginPath()
-        ctx.moveTo(curX, curY + 2)
-        ctx.lineTo(curX + rw, curY + 2)
+        ctx.moveTo(curX, lineY + size * 0.3)
+        ctx.lineTo(curX + rw, lineY + size * 0.3)
         ctx.strokeStyle = run.color || fg
         ctx.lineWidth = 1
         ctx.stroke()
       }
       if (run.strike) {
         ctx.beginPath()
-        ctx.moveTo(curX, curY - size * 0.35)
-        ctx.lineTo(curX + rw, curY - size * 0.35)
+        ctx.moveTo(curX, lineY)
+        ctx.lineTo(curX + rw, lineY)
         ctx.strokeStyle = run.color || fg
         ctx.lineWidth = 1
         ctx.stroke()
@@ -227,5 +234,9 @@ function drawNodeText(ctx, node, x, y, w, h, fg) {
 
       curX += rw
     }
+
+    curY += lh
   }
+
+  ctx.textBaseline = 'alphabetic' // reset so edge drawing is unaffected
 }
