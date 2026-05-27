@@ -37,6 +37,24 @@ export function parseRuns(html) {
       return
     }
 
+    if (tag === 'OL' || tag === 'UL') {
+      let counter = 0
+      for (const child of node.childNodes) {
+        if (child.nodeType === Node.ELEMENT_NODE && child.tagName.toUpperCase() === 'LI') {
+          counter++
+          const marker = tag === 'OL' ? `${counter}. ` : '• '
+          runs.push({ ...next, text: marker })
+          for (const liChild of child.childNodes) {
+            walk(liChild, next)
+          }
+          runs.push({ ...next, text: '\n' })
+        } else {
+          walk(child, next)
+        }
+      }
+      return
+    }
+
     const isBlock = ['P', 'DIV', 'LI', 'H1', 'H2', 'H3'].includes(tag)
     for (const child of node.childNodes) {
       walk(child, next)

@@ -160,7 +160,7 @@ body {
 .node-bubble {
   display: inline-block;
   min-width: 80px;
-  max-width: 260px;
+  max-width: 320px;
   padding: 8px 14px;
   border-radius: 14px;
   border: 2px solid transparent;
@@ -204,6 +204,11 @@ body {
   content: 'Type here…';
   opacity: 0.4;
   pointer-events: none;
+}
+
+.node-content ol,
+.node-content ul {
+  padding-left: 22px;
 }
 
 .node-collapse-icon {

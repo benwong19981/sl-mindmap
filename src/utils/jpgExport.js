@@ -137,20 +137,27 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-// Read the dominant text-align from the node's rendered DOM element
+// Read the dominant text-align from the node's rendered DOM element.
+// execCommand justify* writes inline style.textAlign on block descendants,
+// so we search all descendants rather than walking up from the first child.
 function getNodeTextAlign(nodeId) {
   const el = document.querySelector(`.node[data-id="${nodeId}"] .node-content`)
   if (!el) return 'left'
-  // Walk up to find explicit text-align (set by execCommand justify*)
-  let target = el.firstElementChild || el
-  while (target && target !== el.parentElement) {
-    const align = window.getComputedStyle(target).textAlign
-    if (align && align !== 'start' && align !== 'left') return align
-    // Also check inline style directly (execCommand writes inline styles)
-    if (target.style?.textAlign) return target.style.textAlign
-    target = target.parentElement
+
+  function findAlign(node) {
+    if (node.nodeType !== Node.ELEMENT_NODE) return null
+    const inlineAlign = node.style?.textAlign
+    if (inlineAlign && inlineAlign !== '' && inlineAlign !== 'start' && inlineAlign !== 'left') {
+      return inlineAlign
+    }
+    for (const child of node.children) {
+      const found = findAlign(child)
+      if (found) return found
+    }
+    return null
   }
-  return 'left'
+
+  return findAlign(el) || 'left'
 }
 
 function drawNodeText(ctx, node, x, y, w, h, fg) {
