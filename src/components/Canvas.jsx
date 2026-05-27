@@ -29,14 +29,22 @@ export default function Canvas({
   onRubberBandSelect,
 }) {
   const cwRef = useRef(null)
-  const [isPanning, setIsPanning] = useState(false)
+  const isPanningRef = useRef(false)
   const panStart = useRef(null)
   const dragNodeState = useRef(null)
   const selBoxStart = useRef(null)
   const selBoxMode = useRef(null) // 'export' | 'normal'
   const [selBox, setSelBox] = useState(null)
 
-  // Wheel: pinch (ctrlKey=true) → zoom, two-finger swipe → pan
+  // Refs so touch handlers can read latest values without stale closures
+  const ctxRef = useRef({})
+  ctxRef.current = { zoom, panX, panY, exportMode, onZoom, onPan, onDeselect, onDragNode, nodes, onExportDragSelect, onRubberBandSelect }
+
+  // Touch pinch state
+  const pinchRef = useRef(null) // { startDist, startZoom, startPanX, startPanY, midX, midY }
+
+  // ─── Wheel: pinch (ctrlKey=true) → zoom, two-finger swipe → pan ───
+
   const handleWheel = useCallback((e) => {
     if (exportMode) return
     e.preventDefault()
@@ -64,6 +72,136 @@ export default function Canvas({
     return () => el.removeEventListener('wheel', handleWheel)
   }, [handleWheel])
 
+  // ─── Touch: canvas pan + pinch-zoom ───
+  // Registered via useEffect with passive:false so preventDefault works on iOS
+
+  const handleCwTouchStart = useCallback((e) => {
+    const { panX, panY, zoom, onDeselect } = ctxRef.current
+    e.preventDefault()
+
+    if (e.touches.length >= 2) {
+      const t1 = e.touches[0]
+      const t2 = e.touches[1]
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
+      const midX = (t1.clientX + t2.clientX) / 2
+      const midY = (t1.clientY + t2.clientY) / 2
+      pinchRef.current = { startDist: dist, startZoom: zoom, startPanX: panX, startPanY: panY, midX, midY }
+      isPanningRef.current = false
+      panStart.current = null
+      return
+    }
+
+    // Single finger on canvas background → deselect + pan
+    onDeselect()
+    const t = e.touches[0]
+    isPanningRef.current = true
+    panStart.current = { x: t.clientX - panX, y: t.clientY - panY }
+    pinchRef.current = null
+  }, [])
+
+  const handleCwTouchMove = useCallback((e) => {
+    const { zoom, onZoom, onPan } = ctxRef.current
+    e.preventDefault()
+
+    if (pinchRef.current && e.touches.length >= 2) {
+      const t1 = e.touches[0]
+      const t2 = e.touches[1]
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
+      const { startDist, startZoom, startPanX, startPanY, midX, midY } = pinchRef.current
+      const cw = cwRef.current
+      if (!cw) return
+      const rect = cw.getBoundingClientRect()
+      const px = midX - rect.left
+      const py = midY - rect.top
+      const factor = dist / startDist
+      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, startZoom * factor))
+      const newPanX = px - (px - startPanX) * (newZoom / startZoom)
+      const newPanY = py - (py - startPanY) * (newZoom / startZoom)
+      onZoom(newZoom, newPanX, newPanY)
+      return
+    }
+
+    if (isPanningRef.current && panStart.current && e.touches.length >= 1) {
+      const t = e.touches[0]
+      onPan(t.clientX - panStart.current.x, t.clientY - panStart.current.y)
+    }
+  }, [])
+
+  const handleCwTouchEnd = useCallback((e) => {
+    if (e.touches.length === 0) {
+      isPanningRef.current = false
+      panStart.current = null
+      pinchRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const el = cwRef.current
+    if (!el) return
+    el.addEventListener('touchstart', handleCwTouchStart, { passive: false })
+    el.addEventListener('touchmove', handleCwTouchMove, { passive: false })
+    el.addEventListener('touchend', handleCwTouchEnd)
+    return () => {
+      el.removeEventListener('touchstart', handleCwTouchStart)
+      el.removeEventListener('touchmove', handleCwTouchMove)
+      el.removeEventListener('touchend', handleCwTouchEnd)
+    }
+  }, [handleCwTouchStart, handleCwTouchMove, handleCwTouchEnd])
+
+  // ─── Document-level touch handlers for node drag ───
+  // touchmove fires on the element where touchstart fired (the Node),
+  // so we listen at the document level to continue node drags.
+
+  useEffect(() => {
+    function onDocTouchMove(e) {
+      if (!dragNodeState.current) return
+      e.preventDefault()
+      const t = e.touches[0]
+      const { id, startX, startY, startNodeX, startNodeY } = dragNodeState.current
+      const { zoom, onDragNode } = ctxRef.current
+      const dx = (t.clientX - startX) / zoom
+      const dy = (t.clientY - startY) / zoom
+      onDragNode(id, startNodeX + dx, startNodeY + dy)
+    }
+
+    function onDocTouchEnd() {
+      dragNodeState.current = null
+    }
+
+    document.addEventListener('touchmove', onDocTouchMove, { passive: false })
+    document.addEventListener('touchend', onDocTouchEnd)
+    return () => {
+      document.removeEventListener('touchmove', onDocTouchMove)
+      document.removeEventListener('touchend', onDocTouchEnd)
+    }
+  }, []) // stable — uses ctxRef for latest values
+
+  // ─── Keyboard offset when virtual keyboard opens (mobile editing) ───
+
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv || !editingId) return
+
+    function adjust() {
+      const keyboardH = window.innerHeight - vv.height - vv.offsetTop
+      if (cwRef.current) {
+        cwRef.current.style.paddingBottom = keyboardH > 0 ? `${keyboardH}px` : ''
+      }
+    }
+
+    vv.addEventListener('resize', adjust)
+    vv.addEventListener('scroll', adjust)
+    adjust()
+
+    return () => {
+      vv.removeEventListener('resize', adjust)
+      vv.removeEventListener('scroll', adjust)
+      if (cwRef.current) cwRef.current.style.paddingBottom = ''
+    }
+  }, [editingId])
+
+  // ─── Mouse handlers ───
+
   function handleMouseDown(e) {
     if (e.button !== 0) return
 
@@ -76,7 +214,6 @@ export default function Canvas({
     }
 
     if (e.shiftKey) {
-      // Shift+drag on canvas = rubber-band multi-select
       const rect = cwRef.current.getBoundingClientRect()
       selBoxStart.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
       selBoxMode.current = 'normal'
@@ -84,9 +221,8 @@ export default function Canvas({
       return
     }
 
-    // Plain click on canvas background → deselect all + start pan
     onDeselect()
-    setIsPanning(true)
+    isPanningRef.current = true
     panStart.current = { x: e.clientX - panX, y: e.clientY - panY }
     cwRef.current.classList.add('grabbing')
   }
@@ -100,7 +236,7 @@ export default function Canvas({
       return
     }
 
-    if (isPanning && panStart.current) {
+    if (isPanningRef.current && panStart.current) {
       onPan(e.clientX - panStart.current.x, e.clientY - panStart.current.y)
       return
     }
@@ -119,8 +255,8 @@ export default function Canvas({
       return
     }
 
-    if (isPanning) {
-      setIsPanning(false)
+    if (isPanningRef.current) {
+      isPanningRef.current = false
       panStart.current = null
       cwRef.current?.classList.remove('grabbing')
       return
@@ -155,10 +291,13 @@ export default function Canvas({
   function startNodeDrag(e, nodeId) {
     const node = nodes[nodeId]
     if (!node) return
+    // Support both mouse events and touch-like objects { touches: [...] }
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
     dragNodeState.current = {
       id: nodeId,
-      startX: e.clientX,
-      startY: e.clientY,
+      startX: clientX,
+      startY: clientY,
       startNodeX: node.x,
       startNodeY: node.y,
     }

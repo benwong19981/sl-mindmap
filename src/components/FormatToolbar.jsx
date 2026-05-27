@@ -4,6 +4,7 @@ import {
   IconAlignLeft, IconAlignCenter, IconAlignRight,
   IconList, IconListNumbers, IconEraser
 } from '@tabler/icons-react'
+import { useIsMobile } from '../hooks/useIsMobile.js'
 
 const TEXT_COLORS = [
   { label: 'Default', value: null, bg: 'transparent', border: true },
@@ -18,11 +19,12 @@ const TEXT_COLORS = [
 ]
 
 export default function FormatToolbar({ editingNodeId, nodes }) {
+  const isMobile = useIsMobile()
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const toolbarRef = useRef(null)
 
   useEffect(() => {
-    if (!editingNodeId) return
+    if (!editingNodeId || isMobile) return
 
     function updatePos() {
       const nodeEl = document.querySelector(`.node[data-id="${editingNodeId}"] .node-bubble`)
@@ -67,7 +69,7 @@ export default function FormatToolbar({ editingNodeId, nodes }) {
     <div
       ref={toolbarRef}
       className="format-toolbar"
-      style={{ top: pos.top, left: pos.left }}
+      style={isMobile ? {} : { top: pos.top, left: pos.left }}
       onMouseDown={e => e.preventDefault()}
     >
       <button className="fmt-btn" title="Bold" onMouseDown={e => handleMouseDown(e, 'bold')}>

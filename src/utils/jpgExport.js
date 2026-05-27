@@ -163,7 +163,7 @@ function getNodeTextAlign(nodeId) {
 function drawNodeText(ctx, node, x, y, w, h, fg) {
   const runs = parseRuns(node.html || node.label || '')
   const padX = 14
-  const maxTextW = w - padX * 2
+  const maxTextW = w - padX * 2 - 4  // 4px safety margin — canvas fonts differ slightly from browser
   const lines = wrapLines(runs, ctx, maxTextW)
   const align = getNodeTextAlign(node.id)
 
@@ -204,10 +204,9 @@ function drawNodeText(ctx, node, x, y, w, h, fg) {
     for (const run of line) {
       const size = FONT_SIZES[run.size] || 14
       ctx.font = `${run.italic ? 'italic ' : ''}${run.bold ? 'bold ' : ''}${size}px -apple-system, BlinkMacSystemFont, sans-serif`
+      const rw = ctx.measureText(run.text).width  // measure before fillText to avoid stale state
       ctx.fillStyle = run.color || fg
       ctx.fillText(run.text, curX, curY)
-
-      const rw = ctx.measureText(run.text).width
 
       if (run.underline) {
         ctx.beginPath()

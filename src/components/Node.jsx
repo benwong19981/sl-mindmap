@@ -17,6 +17,12 @@ export default function Node({
 }) {
   const contentRef = useRef(null)
 
+  // Touch interaction state
+  const lastTapRef = useRef(0)
+  const longPressRef = useRef(null)
+  const touchStartRef = useRef(null)
+  const touchDraggingRef = useRef(false)
+
   // Sync html into DOM (always imperative to avoid React/contentEditable conflict)
   useEffect(() => {
     if (!isEditing && contentRef.current) {
@@ -40,10 +46,15 @@ export default function Node({
     }
   }, [isEditing])
 
+  // Cancel long-press timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(longPressRef.current)
+  }, [])
+
   function handleMouseDown(e) {
     if (e.button !== 0) return
-    e.stopPropagation() // always block canvas pan/drag while this node is mounted
-    if (isEditing) return // let browser handle native text selection
+    e.stopPropagation()
+    if (isEditing) return
     if (isExportMode) return
     onDragStart(e, node.id)
   }
@@ -78,6 +89,73 @@ export default function Node({
     }
   }
 
+  // ─── Touch handlers ───
+
+  function handleTouchStart(e) {
+    e.stopPropagation()
+    if (isEditing) return // let browser handle text cursor placement
+    e.preventDefault()
+
+    if (isExportMode) {
+      onExportToggle(node.id)
+      return
+    }
+
+    const t = e.touches[0]
+    touchStartRef.current = { x: t.clientX, y: t.clientY }
+    touchDraggingRef.current = false
+
+    longPressRef.current = setTimeout(() => {
+      longPressRef.current = null
+      touchStartRef.current = null
+      onContextMenu({ clientX: t.clientX, clientY: t.clientY }, node.id)
+    }, 500)
+  }
+
+  function handleTouchMove(e) {
+    if (!touchStartRef.current) return
+    const t = e.touches[0]
+    const dx = t.clientX - touchStartRef.current.x
+    const dy = t.clientY - touchStartRef.current.y
+
+    if (!touchDraggingRef.current && Math.hypot(dx, dy) > 8) {
+      clearTimeout(longPressRef.current)
+      longPressRef.current = null
+      touchDraggingRef.current = true
+      // Pass touch start coords so canvas can compute delta from the right origin
+      onDragStart(
+        { touches: [{ clientX: touchStartRef.current.x, clientY: touchStartRef.current.y }] },
+        node.id
+      )
+    }
+  }
+
+  function handleTouchEnd(e) {
+    clearTimeout(longPressRef.current)
+    longPressRef.current = null
+
+    if (touchDraggingRef.current) {
+      touchDraggingRef.current = false
+      touchStartRef.current = null
+      return
+    }
+
+    if (!touchStartRef.current) return // long-press context menu was triggered
+    touchStartRef.current = null
+
+    if (isExportMode) return // handled in touchStart
+
+    // Double-tap → edit, single tap → select
+    const now = Date.now()
+    if (now - lastTapRef.current < 300) {
+      lastTapRef.current = 0
+      onEdit(node.id)
+    } else {
+      lastTapRef.current = now
+      onSelect(node.id, false)
+    }
+  }
+
   const colorClass = `nc-${node.color}`
   const isRoot = !node.parent
 
@@ -95,6 +173,9 @@ export default function Node({
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       <div className={`node-bubble ${colorClass}`}>
         <div

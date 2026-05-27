@@ -12,7 +12,9 @@ import MultiFormatBar from './components/MultiFormatBar.jsx'
 import SidePanel from './components/SidePanel.jsx'
 import ExportBanner from './components/ExportBanner.jsx'
 import ContextMenu from './components/ContextMenu.jsx'
+import ActionSheet from './components/ActionSheet.jsx'
 import ZoomControls from './components/ZoomControls.jsx'
+import { useIsMobile } from './hooks/useIsMobile.js'
 
 function Toast({ message }) {
   if (!message) return null
@@ -61,6 +63,7 @@ export default function App() {
   const [toast, setToast] = useState(null)
   const [renderTick, setRenderTick] = useState(0)
 
+  const isMobile = useIsMobile()
   const toastTimerRef = useRef(null)
   const kbRef = useRef({})
 
@@ -434,10 +437,24 @@ export default function App() {
         />
       )}
 
-      {contextMenu && (
+      {contextMenu && !isMobile && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
+          nodeId={contextMenu.nodeId}
+          nodes={nodes}
+          collapsed={collapsed}
+          onAddChild={handleAddChild}
+          onAddSibling={handleAddSibling}
+          onAutoLayout={handleAutoLayout}
+          onToggleCollapse={handleToggleCollapse}
+          onDelete={handleDelete}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {contextMenu && isMobile && (
+        <ActionSheet
           nodeId={contextMenu.nodeId}
           nodes={nodes}
           collapsed={collapsed}

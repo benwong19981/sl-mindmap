@@ -6,6 +6,12 @@ export function parseRuns(html) {
   temp.innerHTML = html
   const runs = []
 
+  function ensureNewline(state) {
+    if (runs.length > 0 && runs[runs.length - 1].text !== '\n') {
+      runs.push({ ...state, text: '\n' })
+    }
+  }
+
   function walk(node, state) {
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent
@@ -56,18 +62,18 @@ export function parseRuns(html) {
     }
 
     const isBlock = ['P', 'DIV', 'LI', 'H1', 'H2', 'H3'].includes(tag)
+    if (isBlock && node !== temp && runs.length > 0) ensureNewline(state)
     for (const child of node.childNodes) {
       walk(child, next)
     }
-    if (isBlock && node !== temp) {
-      runs.push({ ...state, text: '\n' })
-    }
+    if (isBlock && node !== temp) ensureNewline(state)
   }
 
   walk(temp, { bold: false, italic: false, underline: false, strike: false, color: null, size: 3 })
 
-  // Remove trailing newline
-  if (runs.length > 0 && runs[runs.length - 1].text === '\n') runs.pop()
+  // Remove leading and trailing newlines
+  while (runs.length > 0 && runs[0].text === '\n') runs.shift()
+  while (runs.length > 0 && runs[runs.length - 1].text === '\n') runs.pop()
 
   return runs.length ? runs : [{ text: '', bold: false, italic: false, underline: false, color: null, size: 3 }]
 }
